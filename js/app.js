@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildTruck, SIDE_TEX, REAR_TEX, BOX } from './truck.js';
 import {
   drawSide, drawRear, drawSymbol, SIDE_DESIGNS, REAR_DESIGNS, PALETTES, SWATCHES,
-  setCustomLogo, setLogoTint, FONT_WORD, FONT_MONO, DEFAULT_T, drawCustom, CUSTOM_STEPS,
+  setCustomLogo, setLogoTint, FONT_WORD, FONT_MONO, DEFAULT_T, drawCustom, CUSTOM_STEPS, Z,
 } from './brand.js';
 
 const $ = (s) => document.querySelector(s);
@@ -18,7 +18,7 @@ const state = {
   sideT: { ...DEFAULT_T }, rearT: { ...DEFAULT_T }, // posición y tamaño del logo
   custom: { side: [], rear: [] }, // diseño libre: side/rear = 'custom' para usarlo
 };
-const builder = { target: 'side', step: 0 }; // estado del asistente (solo interfaz)
+const builder = { open: false, target: 'side', step: 0, prev: null }; // estado del asistente (solo interfaz)
 let exporting = false;
 const designLabel = (v) => (v === 'custom' ? 'propia' : v);
 const colors = () => ({ bg: state.bg, symbol: state.symbol, text: state.text });
@@ -37,7 +37,7 @@ const texRight = texOf(cvRight), texLeft = texOf(cvLeft), texRear = texOf(cvRear
 
 const logoBox = { right: null, left: null, rear: null }; // caja del logo en px de cada lienzo
 function selectedIndex(surface) {
-  if (exporting || builder.target !== surface) return -1;
+  if (exporting || !builder.open || builder.target !== surface) return -1;
   const type = CUSTOM_STEPS[builder.step]?.type;
   return state.custom[surface].findIndex((e) => e.type === type);
 }
@@ -232,7 +232,7 @@ function buildDesigns() {
     b.className = 'design';
     const cv = makeCanvas(300, Math.round(300 * SIDE_TEX.h / SIDE_TEX.w));
     b.append(cv, Object.assign(document.createElement('span'), { textContent: d.name }));
-    b.onclick = () => { state.side = d.id; state.sideT = { ...DEFAULT_T }; refresh(); };
+    b.onclick = () => { closeBuilder(false); state.side = d.id; state.sideT = { ...DEFAULT_T }; refresh(); };
     side.appendChild(b);
     sideThumbs.push({ b, cv, d });
   });
@@ -241,7 +241,7 @@ function buildDesigns() {
     b.className = 'design';
     const cv = makeCanvas(150, Math.round(150 * REAR_TEX.h / REAR_TEX.w));
     b.append(cv, Object.assign(document.createElement('span'), { textContent: d.name }));
-    b.onclick = () => { state.rear = d.id; state.rearT = { ...DEFAULT_T }; refresh(); };
+    b.onclick = () => { closeBuilder(false); state.rear = d.id; state.rearT = { ...DEFAULT_T }; refresh(); };
     rear.appendChild(b);
     rearThumbs.push({ b, cv, d });
   });
@@ -325,7 +325,9 @@ function pickLogo(e) {
   const inside = (b) => b && px >= b.x0 - pad && px <= b.x1 + pad && py >= b.y0 - pad && py <= b.y1 + pad;
   const b = logoBox[l.name];
   if (Array.isArray(b)) {
-    for (let i = b.length - 1; i >= 0; i--) if (inside(b[i])) return { l, idx: i };
+    const list = state.custom[l.surface];
+    const byTop = b.map((_, i) => i).sort((x, y) => Z[list[y].type] - Z[list[x].type]);
+    for (const i of byTop) if (inside(b[i])) return { l, idx: i };
     return null;
   }
   return inside(b) ? { l, idx: -1 } : null;
@@ -342,7 +344,7 @@ canvasEl.addEventListener('pointerdown', (e) => {
   const uv = uvOnPlane(l);
   if (!uv) return;
   drag = { l, idx, uv, id: e.pointerId };
-  if (idx >= 0) { // en el diseño libre, arrastrar un elemento lo selecciona en el asistente
+  if (idx >= 0 && builder.open) { // en el diseño libre, arrastrar un elemento lo selecciona en el asistente
     const type = state.custom[l.surface][idx].type;
     builder.target = l.surface;
     builder.step = CUSTOM_STEPS.findIndex((st) => st.type === type);
@@ -403,11 +405,32 @@ const HINTS = {
 };
 const els = () => state.custom[builder.target];
 const findEl = (type) => els().find((e) => e.type === type);
-function enterCustom() {
-  if (state[builder.target] !== 'custom') {
-    state[builder.target] = 'custom';
-    refresh();
+// Al abrir el asistente, el camión queda limpio: solo se ve lo que monte el cliente.
+function openBuilder() {
+  if (!builder.open) builder.prev = { side: state.side, rear: state.rear };
+  builder.open = true;
+  state.side = 'custom';
+  state.rear = 'custom';
+  const missing = CUSTOM_STEPS.findIndex((st) => !findEl(st.type));
+  builder.step = missing >= 0 ? missing : 0;
+  $('#builder').hidden = false;
+  document.body.classList.add('building');
+  refresh();
+  setTimeout(showTarget, 60); // espera a que el visor se redimensione
+  if (matchMedia('(max-width: 820px)').matches) $('#builder').scrollIntoView({ behavior: 'smooth' });
+}
+// restore = true vuelve a los diseños del manual que había antes
+function closeBuilder(restore) {
+  if (!builder.open) return;
+  builder.open = false;
+  if (restore && builder.prev) {
+    state.side = builder.prev.side === 'custom' ? 1 : builder.prev.side;
+    state.rear = builder.prev.rear === 'custom' ? 1 : builder.prev.rear;
   }
+  $('#builder').hidden = true;
+  document.body.classList.remove('building');
+  refresh();
+  setTimeout(() => goView('front34'), 60);
 }
 function showTarget() { goView(builder.target === 'side' ? 'right' : 'rear'); }
 
@@ -433,7 +456,6 @@ function renderBuilder() {
   const root = $('#steps');
   if (!root) return;
   document.querySelectorAll('#builder .seg button').forEach((b) => b.classList.toggle('active', b.dataset.target === builder.target));
-  const active = state[builder.target] === 'custom';
   root.innerHTML = '';
   CUSTOM_STEPS.forEach((st, i) => {
     const el = findEl(st.type);
@@ -442,7 +464,7 @@ function renderBuilder() {
     const head = document.createElement('button');
     head.className = 'step-head';
     head.innerHTML = `<b>${el ? '✓' : i + 1}</b><span>${st.label}</span><em>${el ? 'colocado' : 'pendiente'}</em>`;
-    head.onclick = () => { builder.step = i; if (el) enterCustom(); paintTextures(); renderBuilder(); };
+    head.onclick = () => { builder.step = i; paintTextures(); renderBuilder(); };
     li.appendChild(head);
     if (i === builder.step) {
       const body = document.createElement('div');
@@ -457,7 +479,6 @@ function renderBuilder() {
         add.onclick = () => {
           const d = CUSTOM_DEFAULTS[builder.target][st.type];
           els().push({ type: st.type, ...d, color: st.type === 'symbol' ? state.symbol : state.text, outline: false });
-          state[builder.target] = 'custom';
           refresh(); showTarget();
         };
         const row = document.createElement('div');
@@ -517,15 +538,12 @@ function renderBuilder() {
     li.textContent = '¡Listo! Puedes seguir moviendo cada elemento sobre el camión. Guarda la versión o descarga el PDF.';
     root.appendChild(li);
   }
-  $('#bExit').hidden = !active;
-  $('#bOpen').hidden = active || !els().length;
 }
 document.querySelectorAll('#builder .seg button').forEach((b) => {
   b.onclick = () => {
     builder.target = b.dataset.target;
     const missing = CUSTOM_STEPS.findIndex((st) => !findEl(st.type));
     builder.step = missing >= 0 ? missing : 0;
-    if (els().length) enterCustom();
     paintTextures(); renderBuilder(); showTarget();
   };
 });
@@ -533,14 +551,11 @@ $('#bReset').onclick = () => {
   if (els().length && !confirm('¿Borrar los elementos de tu diseño?')) return;
   state.custom[builder.target] = [];
   builder.step = 0;
-  state[builder.target] = 'custom';
   refresh(); showTarget();
 };
-$('#bExit').onclick = () => {
-  state[builder.target] = 1;
-  refresh();
-};
-$('#bOpen').onclick = () => { enterCustom(); showTarget(); };
+$('#bExit').onclick = () => closeBuilder(true);
+$('#bClose').onclick = () => closeBuilder(false);
+$('#bStart').onclick = () => openBuilder();
 
 // ---------- Logo propio ----------
 function loadImage(src) {
@@ -604,7 +619,7 @@ function renderVersions() {
     inp.value = v.name;
     inp.onchange = () => { v.name = inp.value.trim() || v.name; saveVersions(versions); };
     el.querySelector('small').textContent = `Caja ${designLabel(v.state.side)} · Trasera ${designLabel(v.state.rear)} · ${new Date(v.date).toLocaleDateString('es-ES')}`;
-    const load = async () => { await applyState(v.state); toast(`Cargada «${v.name}»`); };
+    const load = async () => { closeBuilder(false); await applyState(v.state); toast(`Cargada «${v.name}»`); };
     el.querySelector('img').onclick = load;
     el.querySelector('[data-op=load]').onclick = load;
     el.querySelector('[data-op=pdf]').onclick = () => exportPdf([v]);

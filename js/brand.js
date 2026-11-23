@@ -2,20 +2,35 @@
 // Todos los diseños replican las propuestas del PDF "Diseño de caja" (Caja 1–9)
 // y "Diseño puerta trasera" (Trasera 1–4).
 
+import { SVG_DESIGNS, SYMBOL_PATHS, WORD_PATHS } from './designs.js';
+
 export const FONT_WORD = '"Archivo", "Arial Black", sans-serif';
 export const FONT_MONO = '"Overpass Mono", ui-monospace, monospace';
 export const WEB = 'naygarlogistica.com';
 
 // ---------- Símbolo (isotipo "//") ----------
-// Provisional hasta tener el Recurso 1. Coordenadas en unidades de altura (alto = 1).
-// Si se sube un logo propio, se usa esa imagen en su lugar.
-const SYMBOL_RATIO = 1.656; // ancho / alto
-// Vértices (antes de redondear) medidos sobre el isotipo del PDF.
-const PIECES = [
-  [[0.468, -0.132], [0.835, 0.472], [0.544, 0.996], [-0.115, 0.996]],
-  [[1.188, 1.132], [0.821, 0.528], [1.111, 0.004], [1.771, 0.004]],
-];
-const PIECE_RADIUS = 0.17;
+// Trazados originales (Recurso 1 / Recurso 2). La caja envolvente se mide en el navegador.
+const bboxCache = new Map();
+export function pathsBBox(ds) {
+  const key = ds.join('|').length + ':' + ds[0].slice(0, 40);
+  if (bboxCache.has(key)) return bboxCache.get(key);
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('style', 'position:absolute;width:0;height:0;overflow:hidden;visibility:hidden');
+  const g = document.createElementNS(NS, 'g');
+  ds.forEach((d) => { const el = document.createElementNS(NS, 'path'); el.setAttribute('d', d); g.appendChild(el); });
+  svg.appendChild(g);
+  document.body.appendChild(svg);
+  const b = g.getBBox();
+  svg.remove();
+  const r = { x: b.x, y: b.y, w: b.width, h: b.height };
+  bboxCache.set(key, r);
+  return r;
+}
+const p2dCache = new Map();
+const path2d = (d) => { if (!p2dCache.has(d)) p2dCache.set(d, new Path2D(d)); return p2dCache.get(d); };
+const symBox = () => pathsBBox(SYMBOL_PATHS);
+const wordBox = () => pathsBBox(WORD_PATHS);
 
 let customLogo = null; // HTMLImageElement
 export function setCustomLogo(img) { customLogo = img; }
@@ -26,21 +41,9 @@ export function setLogoTint(v) { tintLogo = v; }
 function symbolRatio() {
   if (customLogo) {
     const w = customLogo.naturalWidth || customLogo.width, h = customLogo.naturalHeight || customLogo.height;
-    return w && h ? w / h : SYMBOL_RATIO;
+    return w && h ? w / h : symBox().w / symBox().h;
   }
-  return SYMBOL_RATIO;
-}
-
-function roundedPoly(ctx, pts, r) {
-  const n = pts.length;
-  const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-  const start = mid(pts[n - 1], pts[0]);
-  ctx.moveTo(start[0], start[1]);
-  for (let i = 0; i < n; i++) {
-    const p = pts[i], q = pts[(i + 1) % n];
-    ctx.arcTo(p[0], p[1], q[0], q[1], r);
-  }
-  ctx.closePath();
+  return symBox().w / symBox().h;
 }
 
 const tintCache = new Map();
@@ -80,18 +83,20 @@ export function drawSymbol(ctx, x, y, h, color, mode = 'fill', tint = tintLogo) 
     ctx.restore();
     return w;
   }
+  const b = symBox(), k = h / b.h;
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(h, h);
-  ctx.beginPath();
-  for (const p of PIECES) roundedPoly(ctx, p, PIECE_RADIUS);
-  if (mode === 'stroke') {
-    ctx.lineWidth = Math.max(0.012, 1 / h);
-    ctx.strokeStyle = color;
-    ctx.stroke();
-  } else {
-    ctx.fillStyle = color;
-    ctx.fill();
+  ctx.scale(k, k);
+  ctx.translate(-b.x, -b.y);
+  for (const d of SYMBOL_PATHS) {
+    if (mode === 'stroke') {
+      ctx.lineWidth = Math.max(0.012 * b.h, 1 / k);
+      ctx.strokeStyle = color;
+      ctx.stroke(path2d(d));
+    } else {
+      ctx.fillStyle = color;
+      ctx.fill(path2d(d));
+    }
   }
   ctx.restore();
   return w;
@@ -108,22 +113,22 @@ function setWordFont(ctx, size) {
 }
 function resetSpacing(ctx) { if ('letterSpacing' in ctx) ctx.letterSpacing = '0px'; }
 
-export function wordWidth(ctx, cap) {
-  ctx.save(); setWordFont(ctx, cap / CAP);
-  const w = ctx.measureText('NAYGAR').width;
-  ctx.restore(); return w;
-}
+export function wordWidth(ctx, cap) { const b = wordBox(); return (b.w * cap) / b.h; }
 
 // Dibuja "NAYGAR" con la línea base en y, empezando en x. cap = altura de mayúsculas.
 // sub: muestra "LOGISTICA" debajo alineado a la derecha.
 export function drawWordmark(ctx, x, y, cap, color, sub = true, subColor = color) {
   ctx.save();
-  ctx.textBaseline = 'alphabetic';
-  ctx.textAlign = 'left';
-  setWordFont(ctx, cap / CAP);
+  const b = wordBox(), k = cap / b.h;
+  ctx.save();
+  ctx.translate(x, y - cap);
+  ctx.scale(k, k);
+  ctx.translate(-b.x, -b.y);
   ctx.fillStyle = color;
-  ctx.fillText('NAYGAR', x, y);
-  const w = ctx.measureText('NAYGAR').width;
+  for (const d of WORD_PATHS) ctx.fill(path2d(d));
+  ctx.restore();
+  ctx.textBaseline = 'alphabetic';
+  const w = b.w * k;
   ext(x, y - cap, w, sub ? cap * 1.45 : cap);
   if (sub) {
     const s = cap * 0.2;
@@ -165,11 +170,64 @@ function paintBackground(ctx, W, H, c) {
 
 // ---------- Diseños laterales (Caja 1–9) ----------
 // mirror = true para el lado en que la cabina queda a la izquierda.
-export const SIDE_DESIGNS = [
-  { id: 1, name: 'Caja 1' }, { id: 2, name: 'Caja 2' }, { id: 3, name: 'Caja 3' },
-  { id: 4, name: 'Caja 4' }, { id: 5, name: 'Caja 5' }, { id: 6, name: 'Caja 6' },
-  { id: 7, name: 'Caja 7' }, { id: 8, name: 'Caja 8' }, { id: 9, name: 'Caja 9' },
-];
+export const SIDE_DESIGNS = Object.keys(SVG_DESIGNS).map((n) => ({ id: +n, name: 'Caja ' + n }));
+
+// Margen para que el logo respire: el diseño ocupa como máximo este ancho/alto del lienzo.
+const FIT = { w: 0.6, h: 0.46 };
+
+// Texto "LOGISTICA." de los SVG: se ajusta al ancho que tiene en el diseño original.
+function drawFittedText(ctx, t, color) {
+  ctx.save();
+  ctx.font = `700 ${t.size}px ${FONT_WORD}`;
+  if ('fontStretch' in ctx) ctx.fontStretch = 'expanded';
+  ctx.textBaseline = 'alphabetic';
+  ctx.fillStyle = color;
+  const m = ctx.measureText(t.str).width || 1;
+  ctx.translate(t.x, t.y);
+  ctx.scale(t.width / m, 1);
+  ctx.fillText(t.str, 0, 0);
+  ctx.restore();
+}
+
+// Dibuja un diseño SVG centrado en el lienzo.
+function drawSvgDesign(ctx, W, H, d, c) {
+  const [, , vw, vh] = d.vb;
+  const k = Math.min((W * FIT.w) / vw, (H * FIT.h) / vh);
+  const x0 = (W - vw * k) / 2, y0 = (H - vh * k) / 2;
+  ext(x0, y0, vw * k, vh * k);
+  ctx.save();
+  ctx.translate(x0, y0);
+  ctx.scale(k, k);
+  const symItems = d.items.filter((i) => i.role === 'symbol');
+  if (customLogo && symItems.length) {
+    // Logo subido por el usuario: ocupa el sitio del símbolo
+    const b = pathsBBox(symItems.map((i) => i.d));
+    const h = b.h, w = h * symbolRatio();
+    ctx.save();
+    ctx.translate(b.x + (b.w - w) / 2, b.y);
+    ctx.scale(1 / k, 1 / k);
+    const keep = BB;
+    drawSymbol(ctx, 0, 0, h * k, c.symbol, symItems[0].stroke ? 'stroke' : 'fill');
+    BB = keep;
+    ctx.restore();
+  }
+  // El símbolo siempre debajo; el texto NAYGAR siempre por encima.
+  const ordered = [...symItems, ...d.items.filter((i) => i.role !== 'symbol')];
+  for (const it of ordered) {
+    if (it.role === 'symbol' && customLogo) continue;
+    const color = it.role === 'symbol' ? c.symbol : c.text;
+    if (it.stroke) {
+      ctx.lineWidth = Math.max(1, 1 / k);
+      ctx.strokeStyle = color;
+      ctx.stroke(path2d(it.d));
+    } else {
+      ctx.fillStyle = color;
+      ctx.fill(path2d(it.d));
+    }
+  }
+  for (const t of d.texts) drawFittedText(ctx, t, c.text);
+  ctx.restore();
+}
 
 // Posición/tamaño del logo elegidos por el usuario: dx, dy en fracción del lienzo, s = escala.
 export const DEFAULT_T = { dx: 0, dy: 0, s: 1 };
@@ -196,63 +254,9 @@ export function drawSide(ctx, W, H, design, c, mirror = false, t = null) {
   return withTransform(ctx, W, H, c, t, mirror, () => sideBody(ctx, W, H, design, c, mirror));
 }
 
-function sideBody(ctx, W, H, design, c, mirror) {
-  // Posiciona un bloque de ancho w cuyo borde izquierdo (sin espejo) está en x.
-  const X = (x, w) => (mirror ? W - x - w : x);
-
-  switch (design) {
-    case 1: case 2: { // símbolo pequeño + NAYGAR, arriba a la izquierda
-      const symH = H * 0.26, cap = H * 0.15, gap = H * 0.06;
-      const w = lockupWidth(ctx, symH, cap, gap);
-      drawLockup(ctx, X(W * 0.17, w), H * 0.36, symH, cap, gap, c, design === 2 ? 'stroke' : 'fill');
-      break;
-    }
-    case 3: { // símbolo grande pegado al texto
-      const symH = H * 0.52, cap = H * 0.17;
-      const sw = symbolWidth(symH), ww = wordWidth(ctx, cap);
-      const total = sw * 0.8 + ww;
-      const x0 = X(W * 0.16, total);
-      drawSymbol(ctx, x0, H * 0.12, symH, c.symbol);
-      drawWordmark(ctx, x0 + sw * 0.8, H * 0.38 + cap / 2, cap, c.text);
-      break;
-    }
-    case 4: case 5: { // símbolo enorme con NAYGAR cruzándolo
-      const symH = H * 0.78, cap = H * 0.16;
-      const sw = symbolWidth(symH), ww = wordWidth(ctx, cap);
-      const cx = mirror ? W * 0.58 : W * 0.42;
-      drawSymbol(ctx, cx - sw / 2, H * 0.06, symH, c.symbol, design === 5 ? 'stroke' : 'fill');
-      drawWordmark(ctx, cx - ww / 2, H * 0.36 + cap / 2, cap, c.text);
-      break;
-    }
-    case 6: { // símbolo centrado detrás de las letras
-      const symH = H * 0.46, cap = H * 0.19;
-      const sw = symbolWidth(symH), ww = wordWidth(ctx, cap);
-      const cx = W * 0.5;
-      drawSymbol(ctx, cx - sw / 2 + ww * 0.04, H * 0.16, symH, c.symbol);
-      drawWordmark(ctx, cx - ww / 2, H * 0.36 + cap / 2, cap, c.text);
-      break;
-    }
-    case 7: { // símbolo gigante en línea a la izquierda + NAYGAR grande
-      const symH = H * 0.92, cap = H * 0.2;
-      const sw = symbolWidth(symH), ww = wordWidth(ctx, cap);
-      drawSymbol(ctx, X(W * 0.04, sw), H * 0.04, symH, c.symbol, 'stroke');
-      drawWordmark(ctx, X(W * 0.04 + sw * 0.55, ww), H * 0.36 + cap / 2, cap, c.text);
-      break;
-    }
-    case 8: { // apilado y centrado
-      const symH = H * 0.18, cap = H * 0.19;
-      const sw = symbolWidth(symH), ww = wordWidth(ctx, cap);
-      drawSymbol(ctx, W / 2 - sw / 2, H * 0.1, symH, c.symbol);
-      drawWordmark(ctx, W / 2 - ww / 2, H * 0.34 + cap, cap, c.text);
-      break;
-    }
-    case 9: default: { // símbolo + NAYGAR centrados
-      const symH = H * 0.13, cap = H * 0.17, gap = H * 0.05;
-      const w = lockupWidth(ctx, symH, cap, gap);
-      drawLockup(ctx, W / 2 - w / 2, H * 0.32, symH, cap, gap, c);
-      break;
-    }
-  }
+function sideBody(ctx, W, H, design, c) {
+  const d = SVG_DESIGNS[design] || SVG_DESIGNS[1];
+  drawSvgDesign(ctx, W, H, d, c);
 }
 
 // ---------- Diseños puerta trasera (Trasera 1–4) ----------
@@ -345,11 +349,17 @@ function drawLogisticaWord(ctx, cx, cy, cap, color) {
   ctx.restore();
 }
 
+export const Z = { symbol: 0, logistica: 1, naygar: 2 };
+
 // Dibuja los elementos y devuelve sus cajas (px). selected = índice a resaltar o -1.
 export function drawCustom(ctx, W, H, els, c, mirror = false, selected = -1) {
   ctx.clearRect(0, 0, W, H);
   paintBackground(ctx, W, H, c);
-  const boxes = els.map((el) => {
+  const boxes = new Array(els.length).fill(null);
+  // Orden de capas: símbolo, LOGISTICA y NAYGAR siempre arriba.
+  const order = els.map((el, i) => i).sort((a, b) => Z[els[a].type] - Z[els[b].type]);
+  order.forEach((i) => {
+    const el = els[i];
     BB = null;
     const cx = (mirror ? 1 - el.x : el.x) * W, cy = el.y * H, h = el.size * H;
     if (el.type === 'symbol') {
@@ -361,7 +371,7 @@ export function drawCustom(ctx, W, H, els, c, mirror = false, selected = -1) {
     } else {
       drawLogisticaWord(ctx, cx, cy, h, el.color);
     }
-    return BB && { ...BB };
+    boxes[i] = BB && { ...BB };
   });
   const b = boxes[selected];
   if (b) {

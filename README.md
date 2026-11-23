@@ -6,11 +6,12 @@ Simulador 3D para probar el logo y los colores de **NAYGAR Logística** sobre la
 
 1. **Paleta**: aplica de un clic una de las combinaciones del sistema de marca (rojo, verde, granate, naranja, azul…).
 2. **Colores**: ajusta por separado el fondo de la lona, el símbolo y el texto.
-3. **Lona lateral**: elige entre los diseños Caja 1–9 del manual.
+3. **Lona lateral**: elige entre los diseños Caja 1–9 (SVG originales en `assets/cajas/`, siempre centrados y con margen). Arrastra el logo sobre el camión para moverlo y ajusta su tamaño.
 4. **Puerta trasera**: elige entre Trasera 1–4.
-5. **Logo**: opcionalmente, sube otro logo (SVG/PNG) que sustituye al símbolo.
-6. **Guardar versión**: guarda la combinación en este navegador para compararla después.
-7. **Descargar PDF**: genera una ficha A4 con las vistas 3D, los artes planos y los códigos de color. Con dos o más versiones guardadas aparece el **PDF comparativo**, con una página por versión.
+5. **Constrúyelo tú mismo**: abre un panel a la derecha y deja el camión limpio. Guía paso a paso: NAYGAR, LOGISTICA y símbolo, cada uno con su color y tamaño, y se arrastran sobre el camión. NAYGAR queda siempre por encima.
+6. **Logo**: opcionalmente, sube otro logo (SVG/PNG) que sustituye al símbolo.
+7. **Guardar versión**: guarda la combinación en este navegador para compararla después.
+8. **Descargar PDF**: genera una ficha A4 con las vistas 3D, los artes planos y los códigos de color. Con dos o más versiones guardadas aparece el **PDF comparativo**, con una página por versión.
 
 Las vistas (3/4 frontal, 3/4 trasera, laterales y trasera) están arriba. El camión también se puede girar con el ratón o con el dedo.
 
@@ -32,4 +33,5 @@ No hace falta compilar nada: es HTML estático. three.js y jsPDF van incluidos e
 ## Notas
 
 - **Tipografía**: el manual usa *TT Travels Next* (licencia comercial). Mientras no esté disponible para web, se usa *Archivo Expanded Bold* como sustituta. La URL usa *Overpass Mono*, la misma del manual.
-- **Isotipo**: está redibujado a partir del PDF. Cuando llegue el Recurso 1 se sustituirá por el trazado original en `js/brand.js`.
+- **Isotipo y logotipo**: se dibujan con los trazados originales de los SVG. Solo «LOGISTICA.» usa la tipografía sustituta, ajustada al ancho del diseño original.
+- Para cambiar un diseño de caja, sustituye `assets/cajas/caja-N.svg` y regenera `js/designs.js`.

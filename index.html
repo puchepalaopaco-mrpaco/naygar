@@ -60,19 +60,12 @@
       </div>
     </section>
 
-    <section id="builder" class="builder">
-      <h2><span>✎</span> Constrúyelo tú mismo</h2>
-      <p class="lead">Monta tu propio diseño paso a paso: primero NAYGAR, luego LOGISTICA y al final el símbolo. Cada elemento se arrastra sobre el camión.</p>
-      <div class="seg">
-        <button data-target="side" class="active">Lona lateral</button>
-        <button data-target="rear">Puerta trasera</button>
-      </div>
-      <ol id="steps" class="steps"></ol>
-      <div class="builder-foot">
-        <button id="bOpen" class="btn ghost small" hidden>Ver mi diseño</button>
-        <button id="bReset" class="btn ghost small">Empezar de cero</button>
-        <button id="bExit" class="btn ghost small" hidden>Volver a los diseños del manual</button>
-      </div>
+    <section class="cta">
+      <button id="bStart" class="cta-btn">
+        <span class="cta-ico">✎</span>
+        <span><b>Constrúyelo tú mismo</b><small>Monta tu propio diseño paso a paso</small></span>
+        <span class="cta-arrow">→</span>
+      </button>
     </section>
 
     <section>
@@ -109,6 +102,25 @@
     <div class="hint">Arrastra el logo para moverlo por la lona · arrastra fuera para girar · rueda o pellizco para zoom</div>
     <div id="toast" class="toast" role="status"></div>
   </main>
+
+  <aside id="builder" class="builder-panel" hidden>
+    <header class="bp-head">
+      <div>
+        <div class="bp-title">Constrúyelo tú mismo</div>
+        <div class="bp-sub">Primero NAYGAR, luego LOGISTICA y al final el símbolo. Arrastra cada elemento sobre el camión.</div>
+      </div>
+      <button id="bClose" class="bp-close" title="Cerrar (mantiene tu diseño)" aria-label="Cerrar">✕</button>
+    </header>
+    <div class="seg">
+      <button data-target="side" class="active">Lona lateral</button>
+      <button data-target="rear">Puerta trasera</button>
+    </div>
+    <ol id="steps" class="steps"></ol>
+    <div class="builder-foot">
+      <button id="bReset" class="btn ghost small">Empezar de cero</button>
+      <button id="bExit" class="btn ghost small">Volver a los diseños del manual</button>
+    </div>
+  </aside>
 
   <script type="module" src="js/app.js"></script>
 </body>
