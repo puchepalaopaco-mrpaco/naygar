@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg id="Capa_2" data-name="Capa 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 727.95 155.17">
+  <defs>
+    <style>
+      .cls-1 {
+        fill: #e6e6e6;
+        font-family: TTTravelsNextTrialVariable-Bold, 'TT Travels Next Trial Variable';
+        font-size: 135.64px;
+        font-variation-settings: 'wght' 704, 'slnt' 0;
+        font-weight: 700;
+      }
+
+      .cls-2 {
+        letter-spacing: -.08em;
+      }
+
+      .cls-3 {
+        letter-spacing: -.02em;
+      }
+
+      .cls-4 {
+        letter-spacing: -.04em;
+      }
+    </style>
+  </defs>
+  <g id="Capa_1-2" data-name="Capa 1">
+    <text class="cls-1" transform="translate(0 115.29)"><tspan x="0" y="0">N</tspan><tspan class="cls-2" x="131.97" y="0">A</tspan><tspan class="cls-4" x="243.2" y="0">Y</tspan><tspan class="cls-3" x="351.57" y="0">G</tspan><tspan x="485.31" y="0">AR</tspan></text>
+  </g>
+</svg>

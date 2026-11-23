@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulador de lonas · NAYGAR</title>
+  <meta name="description" content="Simulador 3D para probar el logo y los colores de NAYGAR Logística sobre las lonas y la puerta trasera del camión.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,700&family=Overpass+Mono:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <script type="importmap">
+    { "imports": {
+        "three": "./lib/three/three.module.js",
+        "three/addons/": "./lib/three/addons/"
+    } }
+  </script>
+  <script src="lib/jspdf.umd.min.js" defer></script>
+</head>
+<body>
+  <aside class="panel">
+    <header class="brand">
+      <div class="brand-mark" aria-hidden="true"></div>
+      <div>
+        <div class="brand-name">NAYGAR</div>
+        <div class="brand-sub">Simulador de lonas</div>
+      </div>
+    </header>
+
+    <section>
+      <h2><span>1</span> Paleta</h2>
+      <div id="palettes" class="palettes"></div>
+    </section>
+
+    <section>
+      <h2><span>2</span> Colores</h2>
+      <div class="colors">
+        <div class="color-row" data-key="bg"><label>Fondo lona</label><div class="sw"></div><input type="color" aria-label="Color de fondo"></div>
+        <div class="color-row" data-key="symbol"><label>Símbolo</label><div class="sw"></div><input type="color" aria-label="Color del símbolo"></div>
+        <div class="color-row" data-key="text"><label>Texto</label><div class="sw"></div><input type="color" aria-label="Color del texto"></div>
+      </div>
+    </section>
+
+    <section>
+      <h2><span>3</span> Lona lateral</h2>
+      <div id="sideDesigns" class="designs side"></div>
+    </section>
+
+    <section>
+      <h2><span>4</span> Puerta trasera</h2>
+      <div id="rearDesigns" class="designs rear"></div>
+    </section>
+
+    <section>
+      <h2><span>5</span> Logo</h2>
+      <div class="logo-row">
+        <label class="btn ghost" for="logoInput">Subir logo (SVG / PNG)</label>
+        <input id="logoInput" type="file" accept=".svg,.png,.jpg,.jpeg,.webp,image/*" hidden>
+        <button id="logoReset" class="btn ghost" hidden>Quitar</button>
+      </div>
+      <label class="check"><input id="logoTint" type="checkbox" checked> Pintar el logo con el color del símbolo</label>
+    </section>
+
+    <footer class="actions">
+      <button id="saveBtn" class="btn primary">Guardar versión</button>
+      <button id="pdfBtn" class="btn">Descargar PDF</button>
+    </footer>
+
+    <section class="versions-wrap">
+      <h2><span>★</span> Versiones guardadas <em id="vcount"></em></h2>
+      <div id="versions" class="versions"></div>
+      <button id="pdfAllBtn" class="btn wide" hidden>PDF comparativo (todas)</button>
+    </section>
+  </aside>
+
+  <main class="stage">
+    <div id="viewer" class="viewer"></div>
+    <nav class="views" aria-label="Vistas">
+      <button data-view="front34" class="active">3/4 frontal</button>
+      <button data-view="rear34">3/4 trasera</button>
+      <button data-view="right">Lateral der.</button>
+      <button data-view="left">Lateral izq.</button>
+      <button data-view="rear">Trasera</button>
+    </nav>
+    <div class="hint">Arrastra para girar · rueda o pellizco para zoom</div>
+    <div id="toast" class="toast" role="status"></div>
+  </main>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
