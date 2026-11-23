@@ -81,6 +81,37 @@ section h2 em { font-style: normal; color: var(--ink); }
 .design.active { border-color: var(--ink); }
 .design.active span { color: var(--ink); }
 
+.adjust { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 13px; }
+.adjust label { flex: 1; display: flex; align-items: center; gap: 8px; }
+.adjust input[type=range] { flex: 1; accent-color: var(--ink); min-width: 0; }
+.adjust output { font-family: var(--mono); font-size: 11px; width: 36px; text-align: right; color: var(--muted); }
+.btn.small { padding: 6px 10px; font-size: 12px; }
+.viewer.can-move canvas { cursor: move; }
+.viewer.moving canvas { cursor: grabbing; }
+.builder { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px; }
+.builder .lead { margin: -4px 0 12px; font-size: 12px; color: var(--muted); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg); border-radius: 999px; padding: 3px; margin-bottom: 12px; }
+.seg button { border: 0; background: none; border-radius: 999px; padding: 7px 8px; cursor: pointer; font-size: 13px; }
+.seg button.active { background: var(--ink); color: #fff; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.step { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.step.open { border-color: var(--ink); }
+.step-head { width: 100%; display: flex; align-items: center; gap: 10px; border: 0; background: none; padding: 9px 10px; cursor: pointer; text-align: left; }
+.step-head b { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--bg); font-size: 12px; flex: none; }
+.step.done .step-head b { background: var(--ink); color: #fff; }
+.step-head span { flex: 1; font-weight: 600; }
+.step-head em { font-style: normal; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.step-body { padding: 0 10px 12px; display: grid; gap: 8px; }
+.step-body p { margin: 0; font-size: 12px; color: var(--muted); }
+.step-body .sw { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.step-body .sw button { width: 20px; height: 20px; border-radius: 50%; border: 1px solid rgba(0,0,0,.18); cursor: pointer; padding: 0; }
+.step-body .sw button.active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--ink); }
+.step-body .sw input[type=color] { width: 30px; height: 22px; border: 1px solid var(--line); border-radius: 6px; padding: 1px; background: #fff; }
+.step-body .adjust { margin-top: 0; }
+.step-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-top: 2px; }
+.step-actions { display: flex; gap: 8px; align-items: center; }
+.step-done { font-size: 12px; background: var(--bg); border-radius: 10px; padding: 10px; }
+.builder-foot { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .logo-row { display: flex; gap: 8px; }
 .check { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 8px; }
 
@@ -126,7 +157,7 @@ section h2 em { font-style: normal; color: var(--ink); }
 }
 .views button { border: 0; background: none; padding: 7px 12px; border-radius: 999px; cursor: pointer; white-space: nowrap; font-size: 13px; }
 .views button.active { background: var(--ink); color: #fff; }
-.hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.hint { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); text-align: center; width: max-content; max-width: calc(100% - 32px); font-family: var(--mono); font-size: 11px; color: var(--muted); }
 .toast {
   position: absolute; bottom: 44px; left: 50%; transform: translate(-50%, 20px); opacity: 0;
   background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 999px; transition: .25s; pointer-events: none;

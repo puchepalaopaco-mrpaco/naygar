@@ -45,11 +45,34 @@
     <section>
       <h2><span>3</span> Lona lateral</h2>
       <div id="sideDesigns" class="designs side"></div>
+      <div class="adjust" data-surface="side">
+        <label>Tamaño <input type="range" min="40" max="250" step="5" value="100" aria-label="Tamaño del logo"><output>100%</output></label>
+        <button class="btn ghost small" data-op="center">Recolocar</button>
+      </div>
     </section>
 
     <section>
       <h2><span>4</span> Puerta trasera</h2>
       <div id="rearDesigns" class="designs rear"></div>
+      <div class="adjust" data-surface="rear">
+        <label>Tamaño <input type="range" min="40" max="250" step="5" value="100" aria-label="Tamaño del logo"><output>100%</output></label>
+        <button class="btn ghost small" data-op="center">Recolocar</button>
+      </div>
+    </section>
+
+    <section id="builder" class="builder">
+      <h2><span>✎</span> Constrúyelo tú mismo</h2>
+      <p class="lead">Monta tu propio diseño paso a paso: primero NAYGAR, luego LOGISTICA y al final el símbolo. Cada elemento se arrastra sobre el camión.</p>
+      <div class="seg">
+        <button data-target="side" class="active">Lona lateral</button>
+        <button data-target="rear">Puerta trasera</button>
+      </div>
+      <ol id="steps" class="steps"></ol>
+      <div class="builder-foot">
+        <button id="bOpen" class="btn ghost small" hidden>Ver mi diseño</button>
+        <button id="bReset" class="btn ghost small">Empezar de cero</button>
+        <button id="bExit" class="btn ghost small" hidden>Volver a los diseños del manual</button>
+      </div>
     </section>
 
     <section>
@@ -83,7 +106,7 @@
       <button data-view="left">Lateral izq.</button>
       <button data-view="rear">Trasera</button>
     </nav>
-    <div class="hint">Arrastra para girar · rueda o pellizco para zoom</div>
+    <div class="hint">Arrastra el logo para moverlo por la lona · arrastra fuera para girar · rueda o pellizco para zoom</div>
     <div id="toast" class="toast" role="status"></div>
   </main>
 

@@ -204,5 +204,5 @@ export function buildTruck(sideLeftTex, sideRightTex, rearTex) {
   box(0.12, 0.12, 1.6, M.dark, r1, 0.52, 0, truck);
   box(0.12, 0.12, 1.6, M.dark, r2, 0.52, 0, truck);
 
-  return { truck, materials: { left: left.material, right: right.material, rear: rear.material } };
+  return { truck, lonas: { left, right, rear } };
 }

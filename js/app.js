@@ -4,7 +4,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { buildTruck, SIDE_TEX, REAR_TEX, BOX } from './truck.js';
 import {
   drawSide, drawRear, drawSymbol, SIDE_DESIGNS, REAR_DESIGNS, PALETTES, SWATCHES,
-  setCustomLogo, setLogoTint, FONT_WORD, FONT_MONO,
+  setCustomLogo, setLogoTint, FONT_WORD, FONT_MONO, DEFAULT_T, drawCustom, CUSTOM_STEPS,
 } from './brand.js';
 
 const $ = (s) => document.querySelector(s);
@@ -15,7 +15,12 @@ const state = {
   palette: 0,
   bg: PALETTES[0].bg, symbol: PALETTES[0].symbol, text: PALETTES[0].text,
   side: 1, rear: 1, logo: null, tint: true,
+  sideT: { ...DEFAULT_T }, rearT: { ...DEFAULT_T }, // posición y tamaño del logo
+  custom: { side: [], rear: [] }, // diseño libre: side/rear = 'custom' para usarlo
 };
+const builder = { target: 'side', step: 0 }; // estado del asistente (solo interfaz)
+let exporting = false;
+const designLabel = (v) => (v === 'custom' ? 'propia' : v);
 const colors = () => ({ bg: state.bg, symbol: state.symbol, text: state.text });
 
 // ---------- Texturas de lona ----------
@@ -30,11 +35,26 @@ const texOf = (cv) => {
 };
 const texRight = texOf(cvRight), texLeft = texOf(cvLeft), texRear = texOf(cvRear);
 
+const logoBox = { right: null, left: null, rear: null }; // caja del logo en px de cada lienzo
+function selectedIndex(surface) {
+  if (exporting || builder.target !== surface) return -1;
+  const type = CUSTOM_STEPS[builder.step]?.type;
+  return state.custom[surface].findIndex((e) => e.type === type);
+}
 function paintTextures() {
   const c = colors();
-  drawSide(cvRight.getContext('2d'), cvRight.width, cvRight.height, state.side, c, false);
-  drawSide(cvLeft.getContext('2d'), cvLeft.width, cvLeft.height, state.side, c, true);
-  drawRear(cvRear.getContext('2d'), cvRear.width, cvRear.height, state.rear, c);
+  const ctx = (cv) => cv.getContext('2d');
+  if (state.side === 'custom') {
+    const sel = selectedIndex('side');
+    logoBox.right = drawCustom(ctx(cvRight), cvRight.width, cvRight.height, state.custom.side, c, false, sel);
+    logoBox.left = drawCustom(ctx(cvLeft), cvLeft.width, cvLeft.height, state.custom.side, c, true, sel);
+  } else {
+    logoBox.right = drawSide(ctx(cvRight), cvRight.width, cvRight.height, state.side, c, false, state.sideT);
+    logoBox.left = drawSide(ctx(cvLeft), cvLeft.width, cvLeft.height, state.side, c, true, state.sideT);
+  }
+  logoBox.rear = state.rear === 'custom'
+    ? drawCustom(ctx(cvRear), cvRear.width, cvRear.height, state.custom.rear, c, false, selectedIndex('rear'))
+    : drawRear(ctx(cvRear), cvRear.width, cvRear.height, state.rear, c, state.rearT);
   texRight.needsUpdate = texLeft.needsUpdate = texRear.needsUpdate = true;
 }
 
@@ -70,7 +90,7 @@ ground.rotation.x = -Math.PI / 2;
 ground.receiveShadow = true;
 scene.add(ground);
 
-const { truck } = buildTruck(texLeft, texRight, texRear);
+const { truck, lonas } = buildTruck(texLeft, texRight, texRear);
 scene.add(truck);
 const maxAniso = renderer.capabilities.getMaxAnisotropy();
 [texLeft, texRight, texRear].forEach((t) => (t.anisotropy = maxAniso));
@@ -212,7 +232,7 @@ function buildDesigns() {
     b.className = 'design';
     const cv = makeCanvas(300, Math.round(300 * SIDE_TEX.h / SIDE_TEX.w));
     b.append(cv, Object.assign(document.createElement('span'), { textContent: d.name }));
-    b.onclick = () => { state.side = d.id; refresh(); };
+    b.onclick = () => { state.side = d.id; state.sideT = { ...DEFAULT_T }; refresh(); };
     side.appendChild(b);
     sideThumbs.push({ b, cv, d });
   });
@@ -221,7 +241,7 @@ function buildDesigns() {
     b.className = 'design';
     const cv = makeCanvas(150, Math.round(150 * REAR_TEX.h / REAR_TEX.w));
     b.append(cv, Object.assign(document.createElement('span'), { textContent: d.name }));
-    b.onclick = () => { state.rear = d.id; refresh(); };
+    b.onclick = () => { state.rear = d.id; state.rearT = { ...DEFAULT_T }; refresh(); };
     rear.appendChild(b);
     rearThumbs.push({ b, cv, d });
   });
@@ -247,7 +267,280 @@ function refresh(full = true) {
     document.querySelectorAll('.pal').forEach((b, i) => b.classList.toggle('active', i === state.palette));
   }
   syncColorRows();
+  syncAdjust();
+  renderBuilder();
 }
+
+// ---------- Mover y escalar el logo ----------
+const tKey = { side: 'sideT', rear: 'rearT' };
+function syncAdjust() {
+  document.querySelectorAll('.adjust[data-surface]').forEach((el) => {
+    el.hidden = state[el.dataset.surface] === 'custom';
+    const t = state[tKey[el.dataset.surface]];
+    const pct = Math.round(t.s * 100);
+    el.querySelector('input').value = pct;
+    el.querySelector('output').textContent = pct + '%';
+  });
+}
+document.querySelectorAll('.adjust[data-surface]').forEach((el) => {
+  const key = tKey[el.dataset.surface];
+  el.querySelector('input').addEventListener('input', (e) => {
+    state[key].s = e.target.value / 100;
+    paintTextures(); syncAdjust();
+  });
+  el.querySelector('[data-op=center]').onclick = () => { state[key] = { ...DEFAULT_T }; refresh(); };
+});
+
+// Arrastre directo sobre la lona 3D
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const lonaList = [
+  { name: 'right', mesh: lonas.right, cv: cvRight, key: 'sideT', surface: 'side', sign: 1 },
+  { name: 'left', mesh: lonas.left, cv: cvLeft, key: 'sideT', surface: 'side', sign: -1 },
+  { name: 'rear', mesh: lonas.rear, cv: cvRear, key: 'rearT', surface: 'rear', sign: 1 },
+];
+function setRay(e) {
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+}
+// Punto del rayo sobre el plano infinito de la lona, en coordenadas UV (0..1, y hacia abajo)
+function uvOnPlane(l) {
+  const n = new THREE.Vector3(0, 0, 1).transformDirection(l.mesh.matrixWorld);
+  const p = new THREE.Vector3().setFromMatrixPosition(l.mesh.matrixWorld);
+  const hit = raycaster.ray.intersectPlane(new THREE.Plane().setFromNormalAndCoplanarPoint(n, p), new THREE.Vector3());
+  if (!hit) return null;
+  const local = l.mesh.worldToLocal(hit);
+  const g = l.mesh.geometry.parameters;
+  return { u: local.x / g.width + 0.5, v: 0.5 - local.y / g.height };
+}
+function pickLogo(e) {
+  setRay(e);
+  const hits = raycaster.intersectObjects(lonaList.map((l) => l.mesh), false);
+  if (!hits.length) return null;
+  const l = lonaList.find((x) => x.mesh === hits[0].object);
+  const uv = hits[0].uv;
+  const px = uv.x * l.cv.width, py = (1 - uv.y) * l.cv.height;
+  const pad = l.cv.height * 0.03;
+  const inside = (b) => b && px >= b.x0 - pad && px <= b.x1 + pad && py >= b.y0 - pad && py <= b.y1 + pad;
+  const b = logoBox[l.name];
+  if (Array.isArray(b)) {
+    for (let i = b.length - 1; i >= 0; i--) if (inside(b[i])) return { l, idx: i };
+    return null;
+  }
+  return inside(b) ? { l, idx: -1 } : null;
+}
+let drag = null;
+const canvasEl = renderer.domElement;
+canvasEl.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 && e.pointerType === 'mouse') return;
+  const pick = pickLogo(e);
+  if (!pick) return;
+  const { l, idx } = pick;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  const uv = uvOnPlane(l);
+  if (!uv) return;
+  drag = { l, idx, uv, id: e.pointerId };
+  if (idx >= 0) { // en el diseño libre, arrastrar un elemento lo selecciona en el asistente
+    const type = state.custom[l.surface][idx].type;
+    builder.target = l.surface;
+    builder.step = CUSTOM_STEPS.findIndex((st) => st.type === type);
+    paintTextures(); renderBuilder();
+  }
+  controls.enabled = false;
+  canvasEl.setPointerCapture(e.pointerId);
+  host.classList.add('moving');
+}, { capture: true });
+canvasEl.addEventListener('pointermove', (e) => {
+  if (!drag) {
+    if (e.pointerType === 'mouse' && !e.buttons) host.classList.toggle('can-move', !!pickLogo(e));
+    return;
+  }
+  if (e.pointerId !== drag.id) return;
+  setRay(e);
+  const uv = uvOnPlane(drag.l);
+  if (!uv) return;
+  const du = (uv.u - drag.uv.u) * drag.l.sign, dv = uv.v - drag.uv.v;
+  if (drag.idx >= 0) {
+    const el = state.custom[drag.l.surface][drag.idx];
+    el.x = THREE.MathUtils.clamp(el.x + du, 0, 1);
+    el.y = THREE.MathUtils.clamp(el.y + dv, 0, 1);
+  } else {
+    const t = state[drag.l.key];
+    t.dx = THREE.MathUtils.clamp(t.dx + du, -0.6, 0.6);
+    t.dy = THREE.MathUtils.clamp(t.dy + dv, -0.6, 0.6);
+  }
+  drag.uv = uv;
+  paintTextures();
+});
+const endDrag = (e) => {
+  if (!drag || e.pointerId !== drag.id) return;
+  drag = null;
+  controls.enabled = true;
+  host.classList.remove('moving');
+};
+canvasEl.addEventListener('pointerup', endDrag);
+canvasEl.addEventListener('pointercancel', endDrag);
+
+// ---------- Asistente "Constrúyelo tú mismo" ----------
+const CUSTOM_DEFAULTS = {
+  side: {
+    naygar: { x: 0.5, y: 0.4, size: 0.17 },
+    logistica: { x: 0.62, y: 0.56, size: 0.04 },
+    symbol: { x: 0.24, y: 0.4, size: 0.28 },
+  },
+  rear: {
+    naygar: { x: 0.25, y: 0.3, size: 0.05 },
+    logistica: { x: 0.3, y: 0.355, size: 0.016 },
+    symbol: { x: 0.25, y: 0.22, size: 0.07 },
+  },
+};
+const HINTS = {
+  naygar: 'Empieza por el nombre. Arrástralo sobre el camión hasta donde quieras.',
+  logistica: 'Ahora la palabra LOGISTICA. Suele ir debajo de NAYGAR, alineada a la derecha.',
+  symbol: 'Por último, el símbolo. Puedes ponerlo grande, en contorno o detrás del texto.',
+};
+const els = () => state.custom[builder.target];
+const findEl = (type) => els().find((e) => e.type === type);
+function enterCustom() {
+  if (state[builder.target] !== 'custom') {
+    state[builder.target] = 'custom';
+    refresh();
+  }
+}
+function showTarget() { goView(builder.target === 'side' ? 'right' : 'rear'); }
+
+function swatchRow(current, onPick) {
+  const row = document.createElement('div');
+  row.className = 'sw';
+  SWATCHES.forEach((hex) => {
+    const b = document.createElement('button');
+    b.style.background = hex; b.title = hex;
+    if (hex.toUpperCase() === current.toUpperCase()) b.classList.add('active');
+    b.onclick = () => onPick(hex);
+    row.appendChild(b);
+  });
+  const inp = document.createElement('input');
+  inp.type = 'color'; inp.value = current.toLowerCase(); inp.setAttribute('aria-label', 'Otro color');
+  inp.oninput = () => onPick(inp.value.toUpperCase(), true);
+  inp.onchange = () => renderBuilder();
+  row.appendChild(inp);
+  return row;
+}
+
+function renderBuilder() {
+  const root = $('#steps');
+  if (!root) return;
+  document.querySelectorAll('#builder .seg button').forEach((b) => b.classList.toggle('active', b.dataset.target === builder.target));
+  const active = state[builder.target] === 'custom';
+  root.innerHTML = '';
+  CUSTOM_STEPS.forEach((st, i) => {
+    const el = findEl(st.type);
+    const li = document.createElement('li');
+    li.className = 'step' + (i === builder.step ? ' open' : '') + (el ? ' done' : '');
+    const head = document.createElement('button');
+    head.className = 'step-head';
+    head.innerHTML = `<b>${el ? '✓' : i + 1}</b><span>${st.label}</span><em>${el ? 'colocado' : 'pendiente'}</em>`;
+    head.onclick = () => { builder.step = i; if (el) enterCustom(); paintTextures(); renderBuilder(); };
+    li.appendChild(head);
+    if (i === builder.step) {
+      const body = document.createElement('div');
+      body.className = 'step-body';
+      const p = document.createElement('p');
+      p.textContent = HINTS[st.type];
+      body.appendChild(p);
+      if (!el) {
+        const add = document.createElement('button');
+        add.className = 'btn primary';
+        add.textContent = 'Añadir ' + (st.type === 'symbol' ? 'símbolo' : st.type === 'naygar' ? 'NAYGAR' : 'LOGISTICA');
+        add.onclick = () => {
+          const d = CUSTOM_DEFAULTS[builder.target][st.type];
+          els().push({ type: st.type, ...d, color: st.type === 'symbol' ? state.symbol : state.text, outline: false });
+          state[builder.target] = 'custom';
+          refresh(); showTarget();
+        };
+        const row = document.createElement('div');
+        row.className = 'step-actions';
+        row.appendChild(add);
+        if (i < CUSTOM_STEPS.length - 1) {
+          const skip = document.createElement('button');
+          skip.className = 'btn ghost small'; skip.textContent = 'Saltar';
+          skip.onclick = () => { builder.step = i + 1; paintTextures(); renderBuilder(); };
+          row.appendChild(skip);
+        }
+        body.appendChild(row);
+      } else {
+        const lab = (t) => Object.assign(document.createElement('div'), { className: 'step-label', textContent: t });
+        body.appendChild(lab('Color'));
+        body.appendChild(swatchRow(el.color, (hex, live) => { el.color = hex; paintTextures(); if (!live) renderBuilder(); }));
+        body.appendChild(lab('Tamaño'));
+        const def = CUSTOM_DEFAULTS[builder.target][st.type].size;
+        const size = document.createElement('div');
+        size.className = 'adjust';
+        size.innerHTML = '<label><input type="range" min="30" max="350" step="5" aria-label="Tamaño"><output></output></label>';
+        const r = size.querySelector('input'), o = size.querySelector('output');
+        r.value = Math.round((el.size / def) * 100); o.textContent = r.value + '%';
+        r.oninput = () => { el.size = def * r.value / 100; o.textContent = r.value + '%'; paintTextures(); };
+        body.appendChild(size);
+        if (st.type === 'symbol') {
+          const chk = document.createElement('label');
+          chk.className = 'check';
+          chk.innerHTML = '<input type="checkbox"> Solo contorno';
+          chk.querySelector('input').checked = !!el.outline;
+          chk.querySelector('input').onchange = (e) => { el.outline = e.target.checked; paintTextures(); };
+          body.appendChild(chk);
+        }
+        const row = document.createElement('div');
+        row.className = 'step-actions';
+        const next = document.createElement('button');
+        next.className = 'btn primary';
+        next.textContent = i < CUSTOM_STEPS.length - 1 ? 'Siguiente paso →' : 'Terminar';
+        next.onclick = () => {
+          builder.step = i + 1;
+          paintTextures(); renderBuilder();
+          if (builder.step >= CUSTOM_STEPS.length) toast('¡Diseño listo! Guárdalo como versión o descarga el PDF');
+        };
+        const del = document.createElement('button');
+        del.className = 'btn ghost small'; del.textContent = 'Quitar';
+        del.onclick = () => { els().splice(els().indexOf(el), 1); paintTextures(); renderBuilder(); };
+        row.append(next, del);
+        body.appendChild(row);
+      }
+      li.appendChild(body);
+    }
+    root.appendChild(li);
+  });
+  if (builder.step >= CUSTOM_STEPS.length && els().length) {
+    const li = document.createElement('li');
+    li.className = 'step-done';
+    li.textContent = '¡Listo! Puedes seguir moviendo cada elemento sobre el camión. Guarda la versión o descarga el PDF.';
+    root.appendChild(li);
+  }
+  $('#bExit').hidden = !active;
+  $('#bOpen').hidden = active || !els().length;
+}
+document.querySelectorAll('#builder .seg button').forEach((b) => {
+  b.onclick = () => {
+    builder.target = b.dataset.target;
+    const missing = CUSTOM_STEPS.findIndex((st) => !findEl(st.type));
+    builder.step = missing >= 0 ? missing : 0;
+    if (els().length) enterCustom();
+    paintTextures(); renderBuilder(); showTarget();
+  };
+});
+$('#bReset').onclick = () => {
+  if (els().length && !confirm('¿Borrar los elementos de tu diseño?')) return;
+  state.custom[builder.target] = [];
+  builder.step = 0;
+  state[builder.target] = 'custom';
+  refresh(); showTarget();
+};
+$('#bExit').onclick = () => {
+  state[builder.target] = 1;
+  refresh();
+};
+$('#bOpen').onclick = () => { enterCustom(); showTarget(); };
 
 // ---------- Logo propio ----------
 function loadImage(src) {
@@ -281,9 +574,9 @@ function saveVersions(list) {
 }
 let versions = loadVersions();
 
-function snapshot() { return { ...state }; }
+function snapshot() { return JSON.parse(JSON.stringify(state)); }
 async function applyState(s) {
-  Object.assign(state, s);
+  Object.assign(state, { sideT: { ...DEFAULT_T }, rearT: { ...DEFAULT_T }, custom: { side: [], rear: [] } }, JSON.parse(JSON.stringify(s)));
   setLogoTint(state.tint !== false);
   $('#logoTint').checked = state.tint !== false;
   await applyLogo(state.logo);
@@ -310,7 +603,7 @@ function renderVersions() {
     const inp = el.querySelector('input');
     inp.value = v.name;
     inp.onchange = () => { v.name = inp.value.trim() || v.name; saveVersions(versions); };
-    el.querySelector('small').textContent = `Caja ${v.state.side} · Trasera ${v.state.rear} · ${new Date(v.date).toLocaleDateString('es-ES')}`;
+    el.querySelector('small').textContent = `Caja ${designLabel(v.state.side)} · Trasera ${designLabel(v.state.rear)} · ${new Date(v.date).toLocaleDateString('es-ES')}`;
     const load = async () => { await applyState(v.state); toast(`Cargada «${v.name}»`); };
     el.querySelector('img').onclick = load;
     el.querySelector('[data-op=load]').onclick = load;
@@ -360,12 +653,12 @@ function addVersionPage(doc, title) {
   // Artes planos
   const y2 = 25 + mainH + 8;
   doc.setFontSize(8); doc.setTextColor(...muted);
-  doc.text(`LONA LATERAL · CAJA ${state.side}`, m, y2 - 2);
+  doc.text(state.side === 'custom' ? 'LONA LATERAL · DISEÑO PROPIO' : `LONA LATERAL · CAJA ${state.side}`, m, y2 - 2);
   const sideH = mainW * SIDE_TEX.h / SIDE_TEX.w;
   doc.addImage(cvRight.toDataURL('image/jpeg', 0.92), 'JPEG', m, y2, mainW, sideH);
   doc.setDrawColor(200); doc.rect(m, y2, mainW, sideH);
 
-  doc.text(`PUERTA TRASERA · ${state.rear}`, colX, y2 - 2);
+  doc.text(state.rear === 'custom' ? 'PUERTA TRASERA · DISEÑO PROPIO' : `PUERTA TRASERA · ${state.rear}`, colX, y2 - 2);
   const rw = 40, rh = rw * REAR_TEX.h / REAR_TEX.w;
   doc.addImage(cvRear.toDataURL('image/jpeg', 0.92), 'JPEG', colX, y2, rw, rh);
   doc.rect(colX, y2, rw, rh);
@@ -392,6 +685,8 @@ async function exportPdf(list) {
   toast('Generando PDF…');
   await new Promise((r) => setTimeout(r, 30));
   const saved = snapshot();
+  exporting = true;
+  paintTextures(); // sin el recuadro de selección
   try {
     const doc = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
     for (let i = 0; i < list.length; i++) {
@@ -405,6 +700,7 @@ async function exportPdf(list) {
   } catch (e) {
     console.error(e); toast('Error al generar el PDF');
   } finally {
+    exporting = false;
     await applyState(saved);
     btns.forEach((b) => (b.disabled = false));
   }
